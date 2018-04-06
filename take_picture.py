@@ -20,7 +20,7 @@ PHOTOFORMAT = 'jpeg'
 VOCAB_FILE = '/home/pi/project2/model_data/word_counts.txt'
 MODEL_FILE = '/home/pi/project2/model_data/model.ckpt-2000000'
 
-
+#send command to camera
 def takePicture(filename):
   with picamera.PiCamera() as camera:
     camera.resolution = (640, 480) #(1920, 1080)
@@ -29,6 +29,7 @@ def takePicture(filename):
     print("Photo captured and saved ...")
     return filename + '.' + PHOTOFORMAT
 
+#generate image filename from current time
 def timestamp():
   tstring = datetime.datetime.now()
   print("Filename generated ...")
@@ -38,6 +39,7 @@ def deleteFile(filename):
   os.system("rm " + filename)
   print("File: " + filename + " deleted ...")
 
+#upload image, caption, GPS coordinates tuple to server
 def uploadPicture(filename, caption, coords):
   filePath = './' + filename + '.' + PHOTOFORMAT
 
@@ -58,6 +60,7 @@ def uploadPicture(filename, caption, coords):
   #else:
   #  print("File upload succeeded!")
 
+#get and format GPS coordinates
 def getLocation():
   send_url = 'http://freegeoip.net/json'
   r = requests.get(send_url)
@@ -66,6 +69,7 @@ def getLocation():
   lon = j['longitude']
   return str(lat) + ',' + str(lon)
 
+#generate image caption using image recognition
 def generate_caption_local(filename, sess, generator, vocab):
   with tf.gfile.GFile(filename, "r") as f:
     image = f.read()
@@ -78,8 +82,10 @@ def generate_caption_local(filename, sess, generator, vocab):
     sentence = " ".join(sentence)
     return sentence
   return ""
-  
+
+#get command from DE1 to take picture and upload to server  
 def main():
+  #initialize tensorflow
   g = tf.Graph()  
   print("created tf graph")
   
@@ -97,10 +103,12 @@ def main():
     print("started tf session")
     restore_fn(sess)
 
+    #initialize image caption generator
     generator = caption_generator.CaptionGenerator(model, vocab)
     print("created caption generator")
     serialData = serial.Serial('/dev/ttyAMA0', 115200, timeout=1)
     
+    #listen on serial port for command from DE1
     print("start serial conn")  
     while True:
       import time
@@ -108,10 +116,12 @@ def main():
       print("waiting for take photo message")
       while(input != b'P'):
         input = serialData.read()
+
+      #receive take photo command
       serialData.write(b'p')
       print("photo message has been received")
 
-
+      #wait for DE1 to send GPS coordinates
       print("waiting for GPS message")
       input = serialData.read()
       while(input != b'G'):
@@ -120,6 +130,7 @@ def main():
       serialData.write(b'g')
       print("GPS message has been received")    
 
+      #read latitude
       while(serialData.in_waiting == 0):
         continue; 
       latitude = ""
@@ -136,6 +147,7 @@ def main():
         continue;
       input = serialData.read()
       
+      #read longitude
       longitude = "" 
       while(input != b'\n'):
         if input != b'\x00':
